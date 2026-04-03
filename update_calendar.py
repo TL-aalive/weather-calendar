@@ -5,10 +5,12 @@ from datetime import datetime, timedelta
 from icalendar import Calendar, Event
 
 # --- [설정] ---
-NX, NY = 54, 129
-LOCATION_NAME = "우리집"
-REG_ID_TEMP = '11B20102'
-REG_ID_LAND = '11B00000'
+# 환경 변수(GitHub Secrets)에서 값을 가져오고, 없으면 뒷쪽의 기본값을 사용합니다.
+NX = int(os.environ.get('KMA_NX'))
+NY = int(os.environ.get('KMA_NY'))
+LOCATION_NAME = os.environ.get('LOCATION_NAME')
+REG_ID_TEMP = os.environ.get('REG_ID_TEMP')
+REG_ID_LAND = os.environ.get('REG_ID_LAND')
 API_KEY = os.environ.get('KMA_API_KEY')
 
 def get_weather_info(sky, pty):
