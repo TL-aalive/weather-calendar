@@ -4,7 +4,7 @@ import pytz
 from datetime import datetime, timedelta
 from icalendar import Calendar, Event
 
-# --- [1. 설정] Secrets 미설정 시 즉시 에러 발생 (보안 강화) ---
+# --- [1. 설정] Secrets 미설정 시 즉시 에러 발생 (보안/정확성) ---
 NX = int(os.environ['KMA_NX'])
 NY = int(os.environ['KMA_NY'])
 LOCATION_NAME = os.environ['LOCATION_NAME']
@@ -13,6 +13,7 @@ REG_ID_LAND = os.environ['REG_ID_LAND']
 API_KEY = os.environ['KMA_API_KEY']
 
 def get_weather_info(sky, pty):
+    """단기 예보 기상 상태 판별"""
     sky, pty = str(sky), str(pty)
     if pty != '0':
         if pty in ['1', '4', '5']: return "🌧️", "비/소나기"
@@ -25,6 +26,7 @@ def get_weather_info(sky, pty):
     return "🌡️", "정보없음"
 
 def get_mid_emoji(wf):
+    """중기 예보 기상 상태 판별"""
     if not wf: return "🌡️"
     wf = wf.replace(" ", "")
     if '비' in wf or '소나기' in wf: return "🌧️"
@@ -35,6 +37,7 @@ def get_mid_emoji(wf):
     return "☀️"
 
 def fetch_api(url):
+    """API 호출 공통 함수"""
     try:
         res = requests.get(url, timeout=15)
         if res.status_code == 200: return res.json()
@@ -71,7 +74,14 @@ def main():
     # 개별 항목 캐시 (매시간 데이터 패딩용)
     cache = {'TMP': '15', 'SKY': '1', 'PTY': '0', 'REH': '50', 'WSD': '1.0', 'POP': '0'}
 
+    # [규칙 반영] 오늘 포함 딱 4일치(오늘+3일)까지만 매시간 상세 예보로 처리
+    short_term_limit = (now + timedelta(days=3)).strftime('%Y%m%d')
+
     for d_str in sorted(forecast_map.keys()):
+        # 4일차를 넘어가는 데이터는 매시간 생성을 하지 않고 중기 예보로 넘김
+        if d_str > short_term_limit:
+            continue
+
         day_data = forecast_map[d_str]
         tmps = [float(day_data[t]['TMP']) for t in day_data if 'TMP' in day_data[t]]
         if not tmps: continue
@@ -91,7 +101,7 @@ def main():
                 for cat in cache.keys():
                     if cat in day_data[t_str]: cache[cat] = day_data[t_str][cat]
             
-            # 현재 시간 이후의 데이터만 desc에 추가 (필터링 기능)
+            # 현재 시간 이후의 데이터만 desc에 추가 (과거 시간 필터링)
             if event_time >= now:
                 emoji, wf_str = get_weather_info(cache['SKY'], cache['PTY'])
                 pop_prefix = f"☔{cache['POP']}% " if cache['PTY'] != '0' else ""
@@ -126,21 +136,26 @@ def main():
             for i in range(3, 11):
                 d_target_dt = now + timedelta(days=i)
                 d_target_str = d_target_dt.strftime('%Y%m%d')
+                
+                # 단기 예보(매시간)가 이미 처리된 날짜는 중복 방지를 위해 건너뜀
                 if d_target_str in processed_dates: continue
                 
                 t_min, t_max = t_items.get(f'taMin{i}'), t_items.get(f'taMax{i}')
                 if t_min is None or t_max is None: continue
+                
                 wf_rep = l_items.get(f'wf{i}Pm') if i <= 7 else l_items.get(f'wf{i}')
                 if wf_rep is None: continue
 
                 event = Event()
                 mid_desc = []
                 if i <= 7:
-                    wf_am, wf_pm, rn_am, rn_pm = l_items.get(f'wf{i}Am'), l_items.get(f'wf{i}Pm'), l_items.get(f'rnSt{i}Am'), l_items.get(f'rnSt{i}Pm')
+                    wf_am, wf_pm = l_items.get(f'wf{i}Am'), l_items.get(f'wf{i}Pm')
+                    rn_am, rn_pm = l_items.get(f'rnSt{i}Am'), l_items.get(f'rnSt{i}Pm')
                     mid_desc.append(f"[오전] {get_mid_emoji(wf_am)} {wf_am} (☔{rn_am}%)")
                     mid_desc.append(f"[오후] {get_mid_emoji(wf_pm)} {wf_pm} (☔{rn_pm}%)")
                 else:
-                    wf_rep_val, rn_st = l_items.get(f'wf{i}'), l_items.get(f'rnSt{i}')
+                    wf_rep_val = l_items.get(f'wf{i}')
+                    rn_st = l_items.get(f'rnSt{i}')
                     mid_desc.append(f"[종일] {get_mid_emoji(wf_rep_val)} {wf_rep_val} (☔{rn_st}%)")
 
                 event.add('summary', f"{get_mid_emoji(wf_rep)} {wf_rep} {t_min}/{t_max}°C")
