@@ -37,11 +37,11 @@ jobs:
       - name: Run update script
         env:
           KMA_API_KEY: ${{ secrets.KMA_API_KEY }}
-          KMA_NX: ${{ vars.KMA_NX }}
-          KMA_NY: ${{ vars.KMA_NY }}
-          LOCATION_NAME: ${{ vars.LOCATION_NAME }}
-          REG_ID_TEMP: ${{ vars.REG_ID_TEMP }}
-          REG_ID_LAND: ${{ vars.REG_ID_LAND }}
+          KMA_NX: ${{ secrets.KMA_NX }}
+          KMA_NY: ${{ secrets.KMA_NY }}
+          LOCATION_NAME: ${{ secrets.LOCATION_NAME }}
+          REG_ID_TEMP: ${{ secrets.REG_ID_TEMP }}
+          REG_ID_LAND: ${{ secrets.REG_ID_LAND }}
           TZ: Asia/Seoul
         run: python update_calendar.py
 
